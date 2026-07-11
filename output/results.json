@@ -1,0 +1,52 @@
+[
+  {
+    "id": "TASK_001",
+    "routed_to": "Local Edge (Tier 2)",
+    "answer": "The largest ocean on Earth is the Pacific Ocean."
+  },
+  {
+    "id": "TASK_002",
+    "routed_to": "Cloud (Tier 3)",
+    "answer": "```python\nimport json\nimport requests\n\ndef fetch_and_parse(url, params=None, headers=None):\n    \"\"\"\n    Fetches data from an API endpoint and parses the JSON response.\n\n    Args:\n        url (str): The API endpoint URL.\n        params (dict, optional): Query parameters to send with the request.\n        headers (dict, optional): HTTP headers to include.\n\n    Returns:\n        dict or list: Parsed JSON data.\n\n    Raises:\n        requests.exceptions.RequestException: If the HTTP request fails.\n        json.JSONDecodeError: If the response body is not valid JSON.\n    \"\"\"\n    response = requests.get(url, params=params, headers=headers)\n    response.raise_for_status()  # Raise an exception for HTTP errors\n    return response.json()\n```"
+  },
+  {
+    "id": "TASK_003",
+    "routed_to": "Local Edge (Tier 2)",
+    "answer": "La structure est op\u00e9rationnelle compl\u00e8tement."
+  },
+  {
+    "id": "TASK_004",
+    "routed_to": "Cloud (Tier 3)",
+    "answer": "To solve the equation \\(3x + 15 = 45\\), follow these steps:\n\n**Step 1: Isolate the term with the variable.**\nSubtract 15 from both sides of the equation to remove the constant term on the left side.\n\\[\n3x + 15 - 15 = 45 - 15\n\\]\nThis simplifies to:\n\\[\n3x = 30\n\\]\n\n**Step 2: Solve for \\(x\\).**\nDivide both sides by 3, the coefficient of \\(x\\), to get \\(x\\) by itself.\n\\[\n\\frac{3x}{3} = \\frac{30}{3}\n\\]\nThis simplifies to:\n\\[\nx = 10\n\\]\n\n**Step 3: Check the solution.**\nSubstitute \\(x = 10\\) back into the original equation to verify:\n\\[\n3(10) + 15 = 30 + 15 = 45\n\\]\nSince both sides equal 45, the solution is correct.\n\n**Final Answer:** \\(x = 10\\)"
+  },
+  {
+    "id": "TASK_005",
+    "routed_to": "Local Edge (Tier 2)",
+    "answer": "The Matrix is a science fiction film about humans trapped in simulated reality by machines and their struggle to free themselves."
+  },
+  {
+    "id": "TASK_006",
+    "routed_to": "Cloud (Tier 3)",
+    "answer": "Here's a simple React component that renders a button and tracks how many times it has been clicked:\n\n```jsx\nimport React, { useState } from 'react';\n\nfunction ClickCounter() {\n  const [count, setCount] = useState(0);\n\n  const handleClick = () => {\n    setCount(prevCount => prevCount + 1);\n  };\n\n  return (\n    <div>\n      <button onClick={handleClick}>\n        Clicked {count} {count === 1 ? 'time' : 'times'}\n      </button>\n    </div>\n  );\n}\n\nexport default ClickCounter;\n```\n\n**How it works:**\n- `useState(0)` initializes the counter to `0`.\n- `handleClick` updates the state using the functional form of `setCount` to ensure we always work with the latest value.\n- The button displays the current count and updates it on every click."
+  },
+  {
+    "id": "TASK_007",
+    "routed_to": "Local Edge (Tier 2)",
+    "answer": "Canberra"
+  },
+  {
+    "id": "TASK_008",
+    "routed_to": "Cloud (Tier 3)",
+    "answer": "In Python, **lists** and **tuples** are both sequence data types that can store a collection of items. The key differences are:\n\n| Feature               | List                                    | Tuple                                   |\n|-----------------------|-----------------------------------------|-----------------------------------------|\n| **Mutability**        | Mutable \u2013 can be changed after creation | Immutable \u2013 cannot be changed after creation |\n| **Syntax**            | Square brackets `[1, 2, 3]`             | Parentheses `(1, 2, 3)` (or just commas) |\n| **Performance**       | Slightly slower (due to mutability overhead) | Faster (immutable, simpler memory layout) |\n| **Memory usage**      | Larger (overhead for dynamic resizing)  | Smaller (fixed size)                    |\n| **Hashability**       | Not hashable (cannot be used as dict key or set element) | Hashable if all elements are hashable |\n| **Use cases**         | When you need to modify, add, or remove items | When data should remain constant (e.g., coordinates, function return values) |\n\n### Detailed Explanation\n\n1. **Mutability**  \n   - Lists can be changed in-place: you can append, insert, remove, or replace elements.  \n   - Tuples are fixed once created; any attempt to modify them raises a `TypeError`.\n\n2. **Syntax**  \n   - Lists: `my_list = [1, 2, 3]`  \n   - Tuples: `my_tuple = (1, 2, 3)` or even without parentheses: `my_tuple = 1, 2, 3` (comma\u2011separated values).\n\n3. **Performance & Memory**  \n   - Tuples are slightly faster to create and iterate because they are simpler internally.  \n   - Lists allocate extra memory for future growth; tuples allocate exactly what is needed.\n\n4. **Hashability**  \n   - Because tuples are immutable, they can be used as dictionary keys or elements of a set (provided all contained items are also hashable).  \n   - Lists are not hashable and cannot be used in these contexts.\n\n5. **Use Cases**  \n   - **Lists**: dynamic collections that change over time (e.g., a shopping cart, a list of user inputs).  \n   - **Tuples**: fixed data that should not change (e.g., days of the week, RGB color values, function return values that are meant to be unpacked).\n\n### Example\n\n```python\n# List \u2013 mutable\nfruits = [\"apple\", \"banana\"]\nfruits.append(\"cherry\")   # OK\nfruits[0] = \"avocado\"     # OK\n\n# Tuple \u2013 immutable\ncolors = (255, 0, 0)\n# colors[0] = 128         # TypeError: 'tuple' object does not support item assignment\n\n# Tuple as dictionary key\nlocation = (40.7128, -74.0060)   # New York coordinates\ncity_map = {location: \"New York\"}  # Works\n# city_map[fruits] = \"error\"      # TypeError: unhashable type: 'list'\n```\n\nIn summary, choose a **list** when you need a flexible, changeable sequence, and a **tuple** when you want a lightweight, immutable, and potentially hashable collection."
+  },
+  {
+    "id": "TASK_009",
+    "routed_to": "Local Edge (Tier 2)",
+    "answer": "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
+  },
+  {
+    "id": "TASK_010",
+    "routed_to": "Local Edge (Tier 2)",
+    "answer": "William Shakespeare"
+  }
+]

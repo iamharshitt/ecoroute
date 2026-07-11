@@ -1,9 +1,14 @@
 #!/bin/bash
-echo "Starting local Ollama server..."
+set -e
+
+echo "🚀 Booting internal Ollama Inference Engine..."
 ollama serve > /dev/null 2>&1 &
 
-echo "Waiting 5 seconds for the AI engine to awake..."
-sleep 5
+while ! curl -s http://localhost:11434/api/tags > /dev/null; do
+    sleep 1
+done
 
-echo "Starting High-Performance evaluation script..."
-python main.py
+echo "✅ Engine active. Native model detected!"
+
+echo "🎯 Passing control to EcoRoute Python Orchestrator..."
+python3 main.py

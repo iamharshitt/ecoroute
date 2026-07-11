@@ -1,0 +1,42 @@
+[
+  {
+    "id": "TASK_001",
+    "prompt": "What is the largest ocean on Earth?"
+  },
+  {
+    "id": "TASK_002",
+    "prompt": "import json\nimport requests\n# Write a function that fetches data from an API and parses the JSON."
+  },
+  {
+    "id": "TASK_003",
+    "prompt": "Translate this sentence to French: 'The architecture is fully operational.'"
+  },
+  {
+    "id": "TASK_004",
+    "prompt": "Solve this equation: 3x + 15 = 45. Explain the steps."
+  },
+  {
+    "id": "TASK_005",
+    "prompt": "Summarize the core premise of the movie 'The Matrix' in exactly one sentence."
+  },
+  {
+    "id": "TASK_006",
+    "prompt": "Write a React component that renders a simple button with an onClick counter."
+  },
+  {
+    "id": "TASK_007",
+    "prompt": "What is the capital city of Australia?"
+  },
+  {
+    "id": "TASK_008",
+    "prompt": "Explain the difference between a list and a tuple in Python."
+  },
+  {
+    "id": "TASK_009",
+    "prompt": "Create a regex pattern that matches valid email addresses."
+  },
+  {
+    "id": "TASK_010",
+    "prompt": "Who wrote the play 'Hamlet'?"
+  }
+]
