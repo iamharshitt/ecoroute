@@ -1,15 +1,56 @@
-# 🌍 EcoRoute: 3-Tier AI Orchestration Engine
+# EcoRoute
 
-EcoRoute is an intelligent, cost-saving AI routing architecture built for high-throughput environments. It dynamically analyzes user prompts and routes them to the most cost-effective inference engine capable of answering them.
+EcoRoute is a local-first prototype for routing a batch of prompts. A keyword and length filter sends potentially complex prompts to the heavier configured Fireworks model. Other prompts go to a local Ollama model first. A local escalation signal or failed response routes the original prompt to the cheaper configured Fireworks model.
 
-## 🧠 The Architecture
-1. **Tier 1 (The Gatekeeper):** A Python heuristic regex engine that scans for heavy computational or coding signatures. Costs $0. 0ms latency.
-2. **Tier 2 (The Local Edge):** A fully localized **Qwen2.5:1.5B** inference model baked natively into the container. It intercepts and handles simple factual questions, summarizations, and translations. Costs $0. 
-3. **Tier 3 (The Cloud Fallback):** Complex logic is instantly escalated via exponential backoff to premium cloud models (DeepSeek-V4 / Llama 3.1) via the Fireworks AI API. 
+## Run a benchmark without Docker or an API key
 
-## 🚀 Quick Start
-EcoRoute is fully self-contained. The local edge model is baked directly into the Docker image for a 0-second cold start.
+Install [Ollama for Windows](https://docs.ollama.com/windows), start Ollama, and run these commands in PowerShell from the repository root. Python 3.10 or later is required.
 
-**1. Build the Engine**
-```bash
-docker build -t ecoroute-agent:latest .
+```powershell
+ollama pull qwen2.5:1.5b
+ollama pull qwen2.5:7b
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe main.py --mode ollama-routed --input input/tasks.json --output output/ollama-routed.json
+.\.venv\Scripts\python.exe main.py --mode ollama-large-only --input input/tasks.json --output output/ollama-large-only.json
+.\.venv\Scripts\python.exe benchmark.py output/ollama-routed.json --baseline output/ollama-large-only.json
+```
+
+The routed run tries the small model on simple prompts and uses the large model for complex prompts or when the small model escalates or fails. The baseline uses the same large model and settings for every nonempty prompt. Both runs process one prompt at a time. Set `LOCAL_MODEL` and `OLLAMA_LARGE_MODEL` to use different installed models. Use the same settings for both runs. The report counts large-model attempts and failures and compares per-task processing latency. Model loading can affect timings, so repeat both runs under comparable conditions for a performance claim.
+
+For answer quality, grade both answers for each task against the same expected result. Use automated checks for code and exact-answer tasks where possible. This benchmark measures local inference only.
+
+## Run a batch
+
+Build the image and run these commands from a POSIX shell in the repository root. Set FIREWORKS_API_KEY in your environment before running a batch that may use the cloud. Set ALLOWED_MODELS to a comma-separated list of model IDs available to your Fireworks account if you need to override the defaults in config.py. The first model is used for the cheaper route and the last for the heavier route.
+
+```sh
+docker build -t ecoroute-agent .
+docker run --rm -e FIREWORKS_API_KEY -e ALLOWED_MODELS \
+  -v "$PWD/input:/input:ro" -v "$PWD/output:/output" ecoroute-agent
+python benchmark.py output/results.json
+```
+
+The runner reads input/tasks.json and writes output/results.json. Cloud routes transmit the original prompt to the configured provider. The local stage uses Qwen2.5:1.5B by default and considers up to 2,000 characters per prompt.
+
+## Read the benchmark
+
+The checked-in sample records six successful local results and four successful cloud results. The benchmark counts the recorded routes, separates errors, and reports the local share of all results. The sample does not measure answer quality, latency, token usage, or cost. Measuring savings would require a cloud-only baseline on the same prompts and observed usage for both runs.
+
+## Compare routing with a cloud-only baseline
+
+Set FIREWORKS_API_KEY and use the same input and cloud model configuration in both runs. The baseline uses the configured heavier model for every nonempty prompt.
+
+```sh
+docker run --rm -e FIREWORKS_API_KEY -e ALLOWED_MODELS \
+  -v "$PWD/input:/input:ro" -v "$PWD/output:/output" \
+  ecoroute-agent --mode routed --output /output/routed.json
+docker run --rm -e FIREWORKS_API_KEY -e ALLOWED_MODELS \
+  -v "$PWD/input:/input:ro" -v "$PWD/output:/output" \
+  ecoroute-agent --mode cloud-only --output /output/cloud-only.json
+python benchmark.py output/routed.json --baseline output/cloud-only.json
+```
+
+The comparison checks that task IDs and prompt hashes match. It reports route counts, failures, median and p95 processing latency, and observed cloud input and output tokens for each run. Processing latency includes inference and retries after a task acquires its concurrency slot. It excludes queue time and startup. Token totals cover reported usage from final cloud responses. Usage missing from those responses or incurred by failed retry attempts can be absent from the totals. Compare answer quality separately with a fixed scoring rubric before drawing conclusions about the routing trade-off.
+
+The batch runner validates inputs before inference and rejects duplicate task IDs. Results retain input order and replace the previous output only after the full batch finishes.

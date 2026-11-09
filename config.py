@@ -1,6 +1,6 @@
 import os
 
-FIREWORKS_API_KEY = os.getenv("FIREWORKS_API_KEY", "sandbox_key")
+FIREWORKS_API_KEY = os.getenv("FIREWORKS_API_KEY", "").strip()
 FIREWORKS_BASE_URL = os.getenv("FIREWORKS_BASE_URL", "https://api.fireworks.ai/inference/v1")
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 
@@ -15,4 +15,5 @@ CHEAP_CLOUD_MODEL = ALLOWED_MODELS[0] if ALLOWED_MODELS else "accounts/fireworks
 HEAVY_CLOUD_MODEL = ALLOWED_MODELS[-1] if ALLOWED_MODELS else "accounts/fireworks/models/qwen2p5-coder-32b-instruct"
 
 LOCAL_MODEL = os.getenv("LOCAL_MODEL", "qwen2.5:1.5b")
+OLLAMA_LARGE_MODEL = os.getenv("OLLAMA_LARGE_MODEL", "qwen2.5:7b")
 MAX_CONCURRENT_TASKS = int(os.getenv("MAX_CONCURRENT_TASKS", "20"))
