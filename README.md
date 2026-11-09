@@ -1,15 +1,20 @@
-# 🌍 EcoRoute: 3-Tier AI Orchestration Engine
+# EcoRoute
 
-EcoRoute is an intelligent, cost-saving AI routing architecture built for high-throughput environments. It dynamically analyzes user prompts and routes them to the most cost-effective inference engine capable of answering them.
+EcoRoute is a local-first prototype for routing a batch of prompts. A keyword and length filter sends potentially complex prompts to the heavier configured Fireworks model. Other prompts go to a local Ollama model first. A local escalation signal or failed response routes the original prompt to the cheaper configured Fireworks model.
 
-## 🧠 The Architecture
-1. **Tier 1 (The Gatekeeper):** A Python heuristic regex engine that scans for heavy computational or coding signatures. Costs $0. 0ms latency.
-2. **Tier 2 (The Local Edge):** A fully localized **Qwen2.5:1.5B** inference model baked natively into the container. It intercepts and handles simple factual questions, summarizations, and translations. Costs $0. 
-3. **Tier 3 (The Cloud Fallback):** Complex logic is instantly escalated via exponential backoff to premium cloud models (DeepSeek-V4 / Llama 3.1) via the Fireworks AI API. 
+## Run a batch
 
-## 🚀 Quick Start
-EcoRoute is fully self-contained. The local edge model is baked directly into the Docker image for a 0-second cold start.
+Build the image and run these commands from a POSIX shell in the repository root. Set FIREWORKS_API_KEY in your environment before running a batch that may use the cloud. Set ALLOWED_MODELS to a comma-separated list of model IDs available to your Fireworks account if you need to override the defaults in config.py. The first model is used for the cheaper route and the last for the heavier route.
 
-**1. Build the Engine**
-```bash
-docker build -t ecoroute-agent:latest .
+```sh
+docker build -t ecoroute-agent .
+docker run --rm -e FIREWORKS_API_KEY -e ALLOWED_MODELS \
+  -v "$PWD/input:/input:ro" -v "$PWD/output:/output" ecoroute-agent
+python benchmark.py output/results.json
+```
+
+The runner reads input/tasks.json and writes output/results.json. Cloud routes transmit the original prompt to the configured provider. The local stage uses Qwen2.5:1.5B by default and considers up to 2,000 characters per prompt.
+
+## Read the benchmark
+
+The checked-in sample records six successful local results and four successful cloud results. The benchmark counts the recorded routes, separates errors, and reports the local share of all results. The sample does not measure answer quality, latency, token usage, or cost. Measuring savings would require a cloud-only baseline on the same prompts and observed usage for both runs.
