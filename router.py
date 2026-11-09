@@ -1,15 +1,17 @@
+import re
+
 import httpx
 from config import LOCAL_MODEL, OLLAMA_BASE_URL
 
-HEAVY_SIGNALS = {
-    "def ", "class ", "react", "html", "integral", 
-    "math", "equation", "solve", "function", "algorithm",
-    "import ", "console.log", "void ", "public class"
-}
+COMPLEX_KEYWORDS = re.compile(
+    r"\b(?:react|html|integral|math|equation|solve|function|algorithm|regex)\b"
+    r"|\b(?:def|class|import|void)\s+\w+|\bconsole\.log\b",
+    re.IGNORECASE,
+)
+
 
 def is_complex_heuristic(prompt: str) -> bool:
-    prompt_lower = prompt.lower()
-    return any(sig in prompt_lower for sig in HEAVY_SIGNALS) or len(prompt.split()) > 45
+    return bool(COMPLEX_KEYWORDS.search(prompt)) or len(prompt.split()) > 45
 
 async def run_local_triage(client: httpx.AsyncClient, prompt: str) -> str:
     safe_prompt = prompt[:2000]
@@ -40,8 +42,13 @@ async def run_local_triage(client: httpx.AsyncClient, prompt: str) -> str:
             timeout=30.0
         )
         if response.status_code == 200:
-            return response.json().get("response", "").strip()
-    except (httpx.HTTPError, httpx.TimeoutException):
+            payload = response.json()
+            if isinstance(payload, dict):
+                answer = payload.get("response")
+                if isinstance(answer, str) and answer.strip():
+                    return answer.strip()
+    except (httpx.HTTPError, ValueError):
         pass
     
     return "ESCALATE"
+
