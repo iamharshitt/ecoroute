@@ -3,7 +3,7 @@ import json
 import asyncio
 import httpx
 import re
-from openai import AsyncOpenAI
+from openai import APIConnectionError, APITimeoutError, AsyncOpenAI, RateLimitError
 from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type
 import config
 from router import is_complex_heuristic, run_local_triage
@@ -37,13 +37,13 @@ def compile_final_json():
 def requires_escalation(local_text: str) -> bool:
     if not local_text:
         return True
-    cleaned = re.sub(r'[^a-zA-Z]', '', local_text).upper()
-    return "ESCALATE" in cleaned
+    cleaned = re.sub(r'^[\s*_]+|[\s*_.!]+$', '', local_text).upper()
+    return cleaned in {"", "ESCALATE"}
 
 @retry(
     wait=wait_exponential(multiplier=1, min=2, max=10),
     stop=stop_after_attempt(4),
-    retry=retry_if_exception_type((httpx.HTTPStatusError, httpx.TimeoutException)),
+    retry=retry_if_exception_type((RateLimitError, APIConnectionError, APITimeoutError)),
     reraise=True
 )
 async def call_cloud_with_backoff(openai_client: AsyncOpenAI, model: str, prompt: str) -> str:
@@ -107,7 +107,7 @@ async def async_main():
     limits = httpx.Limits(max_connections=config.MAX_CONCURRENT_TASKS, max_keepalive_connections=5)
     timeout = httpx.Timeout(15.0)
 
-    openai_client = AsyncOpenAI(api_key=config.FIREWORKS_API_KEY, base_url=config.FIREWORKS_BASE_URL)
+    openai_client = AsyncOpenAI(api_key=config.FIREWORKS_API_KEY, base_url=config.FIREWORKS_BASE_URL, max_retries=0, timeout=30.0)
     
     async with httpx.AsyncClient(limits=limits, timeout=timeout) as http_client:
         tasks = [process_single_task(t, http_client, openai_client, semaphore) for t in tasks_list]
@@ -118,3 +118,4 @@ async def async_main():
 
 if __name__ == "__main__":
     asyncio.run(async_main())
+
