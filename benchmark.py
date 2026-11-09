@@ -1,27 +1,36 @@
+import argparse
 import json
-import os
+from collections import Counter
+from pathlib import Path
 
-OUTPUT_FILE = "output/results.json"
-CLOUD_COST_PER_TASK = 0.005 # Estimated premium cloud cost
 
-if not os.path.exists(OUTPUT_FILE):
-    print("Run your Docker container first to generate results!")
-    exit()
+def main():
+    parser = argparse.ArgumentParser(description="Summarize recorded EcoRoute routes.")
+    parser.add_argument("results", nargs="?", type=Path, default=Path("output/results.json"))
+    args = parser.parse_args()
+    try:
+        results = json.loads(args.results.read_text(encoding="utf-8"))
+        if not isinstance(results, list) or any(
+            not isinstance(row, dict) or not isinstance(row.get("routed_to"), str)
+            for row in results
+        ):
+            raise ValueError("expected a JSON array of results with a routed_to string")
+    except (OSError, ValueError) as exc:
+        parser.exit(1, f"Could not read results: {exc}\n")
 
-with open(OUTPUT_FILE, "r", encoding="utf-8") as f:
-    results = json.load(f)
+    routes = Counter(row["routed_to"] for row in results)
+    local = routes["Local Edge (Tier 2)"]
+    cloud = routes["Cloud (Tier 3)"]
+    failed = routes["Error"] + routes["Cloud (Error)"]
+    unknown = len(results) - local - cloud - failed
+    print(f"Total results: {len(results)}")
+    print(f"Handled locally: {local}")
+    print(f"Handled in the cloud: {cloud}")
+    print(f"Failed: {failed}")
+    print(f"Unrecognized route: {unknown}")
+    rate = f"{100 * local / len(results):.1f}%" if results else "N/A (no results)"
+    print(f"Local share of all results: {rate}")
 
-local_count = sum(1 for r in results if not r["answer"].startswith("Error") and "Bubble Sort" not in r["answer"])
-cloud_count = len(results) - local_count
-total_saved = local_count * CLOUD_COST_PER_TASK
 
-print("\n" + "="*40)
-print(" 🚀 ECOROUTE BENCHMARK REPORT ")
-print("="*40)
-print(f"Total Tasks Processed: {len(results)}")
-print(f"Handled Locally (Zero Cost): {local_count}")
-print(f"Escalated to Cloud: {cloud_count}")
-print(f"Local Intercept Rate: {(local_count/len(results))*100:.1f}%")
-print("-" * 40)
-print(f"💰 Total API Funds Saved: ${total_saved:.4f}")
-print("="*40 + "\n")
+if __name__ == "__main__":
+    main()
