@@ -7,6 +7,7 @@ from statistics import median
 
 LOCAL = "Local Edge (Tier 2)"
 CLOUD = "Cloud (Tier 3)"
+OLLAMA_LARGE = "Ollama (Large)"
 
 
 def load_results(path):
@@ -30,8 +31,17 @@ def paired_results(routed, baseline):
             indexed[task_id] = digest
         return indexed
 
-    if not routed or index(routed, "routed") != index(baseline, "cloud-only"):
+    ollama = bool(routed) and routed[0].get("mode") == "ollama-routed"
+    routed_mode, baseline_mode = ("ollama-routed", "ollama-large-only") if ollama else ("routed", "cloud-only")
+    if not routed or index(routed, routed_mode) != index(baseline, baseline_mode):
         raise ValueError("Comparison requires nonempty runs with identical task IDs and prompts.")
+    if ollama:
+        models = routed[0].get("ollama_models")
+        if not isinstance(models, list) or len(models) != 2 or any(
+            row.get("ollama_models") != models for run in (routed, baseline) for row in run
+        ):
+            raise ValueError("Ollama comparison requires identical model settings across both runs.")
+    return baseline_mode
 
 
 def token_total(rows, key):
@@ -45,14 +55,21 @@ def token_total(rows, key):
 def summarize(rows):
     routes = Counter(row["routed_to"] for row in rows)
     local, cloud = routes[LOCAL], routes[CLOUD]
-    failed = routes["Error"] + routes["Cloud (Error)"]
+    large = routes[OLLAMA_LARGE]
+    failed = routes["Error"] + routes["Cloud (Error)"] + routes["Ollama (Error)"]
+    ollama = bool(rows) and rows[0].get("mode") in ("ollama-routed", "ollama-large-only")
     print(f"Total results: {len(rows)}")
     print(f"Handled locally: {local}")
-    print(f"Handled in the cloud: {cloud}")
+    if ollama:
+        print(f"Handled by the large Ollama model: {large}")
+        print(f"Large-model attempts: {large + routes['Ollama (Error)']}")
+        print(f"Answered by the small model: {local}/{len(rows)} ({100 * local / len(rows):.1f}%)")
+    else:
+        print(f"Handled in the cloud: {cloud}")
+        rate = f"{100 * local / len(rows):.1f}%" if rows else "N/A (no results)"
+        print(f"Local share of all results: {rate}")
     print(f"Failed: {failed}")
-    print(f"Unrecognized route: {len(rows) - local - cloud - failed}")
-    rate = f"{100 * local / len(rows):.1f}%" if rows else "N/A (no results)"
-    print(f"Local share of all results: {rate}")
+    print(f"Unrecognized route: {len(rows) - local - cloud - large - failed}")
     timings = sorted(
         row["latency_ms"] for row in rows
         if type(row.get("latency_ms")) in (int, float)
@@ -63,12 +80,14 @@ def summarize(rows):
         print(f"Latency: p50 {median(timings):.2f} ms, p95 {p95:.2f} ms ({len(timings)}/{len(rows)} results)")
     else:
         print("Latency: unavailable")
+    if ollama:
+        return
     print("Cloud input tokens: " + token_total(rows, "cloud_input_tokens"))
     print("Cloud output tokens: " + token_total(rows, "cloud_output_tokens"))
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Summarize EcoRoute runs and optionally compare a matched cloud-only baseline.")
+    parser = argparse.ArgumentParser(description="Summarize EcoRoute runs and optionally compare a matched baseline.")
     parser.add_argument("results", nargs="?", type=Path, default=Path("output/results.json"))
     parser.add_argument("--baseline", type=Path)
     args = parser.parse_args()
@@ -76,17 +95,16 @@ def main():
         routed = load_results(args.results)
         baseline = load_results(args.baseline) if args.baseline else None
         if baseline is not None:
-            paired_results(routed, baseline)
+            baseline_mode = paired_results(routed, baseline)
     except (OSError, ValueError) as exc:
         parser.exit(1, f"Could not compare results: {exc}\n")
 
     print("EcoRoute results")
     summarize(routed)
     if baseline is not None:
-        print("\nCloud-only baseline")
+        print("\nLarge Ollama baseline" if baseline_mode == "ollama-large-only" else "\nCloud-only baseline")
         summarize(baseline)
 
 
 if __name__ == "__main__":
     main()
-
