@@ -16,8 +16,7 @@ ENV PATH="/opt/venv/bin:$PATH"
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
-# 🔥 THE FIX: Start server, save its Process ID, pull the model, then explicitly KILL the server so the build finishes.
-RUN bash -c "ollama serve & OLLAMA_PID=\$! && sleep 5 && ollama pull qwen2.5:1.5b && kill \$OLLAMA_PID && wait \$OLLAMA_PID || true"
+RUN bash -ec 'ollama serve & server=$!; trap "kill $server 2>/dev/null || true; wait $server 2>/dev/null || true" EXIT; for attempt in {1..60}; do if curl -fsS --max-time 2 http://localhost:11434/api/tags >/dev/null 2>&1; then ollama pull qwen2.5:1.5b; exit 0; fi; sleep 1; done; echo "Ollama startup timed out" >&2; exit 1'
 
 RUN chmod +x entrypoint.sh
 
