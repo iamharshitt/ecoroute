@@ -12,7 +12,9 @@ from openai import APIConnectionError, APIError, AsyncOpenAI, RateLimitError
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 import config
-from router import is_complex_heuristic, run_local_triage
+from router import generate_ollama, is_complex_heuristic, run_local_triage
+
+OLLAMA_MODES = ("ollama-routed", "ollama-large-only")
 
 
 def requires_escalation(local_text):
@@ -46,8 +48,23 @@ async def process_task(task, mode, http_client, cloud_client, semaphore):
             "cloud_input_tokens": 0,
             "cloud_output_tokens": 0,
         }
+        if mode in OLLAMA_MODES:
+            result["ollama_models"] = [config.LOCAL_MODEL, config.OLLAMA_LARGE_MODEL]
         if not prompt.strip():
             result.update(routed_to="Error", answer="Error: Empty prompt.")
+        elif mode in OLLAMA_MODES:
+            direct = mode == "ollama-large-only" or len(prompt) > 2000 or is_complex_heuristic(prompt)
+            local_answer = "" if direct else await run_local_triage(http_client, prompt)
+            if requires_escalation(local_answer):
+                model = config.OLLAMA_LARGE_MODEL
+                answer = await generate_ollama(http_client, model, prompt, 1200, 180.0)
+                result["model"] = model
+                if requires_escalation(answer):
+                    result.update(routed_to="Ollama (Error)", answer="Error: Large Ollama model returned no usable answer.")
+                else:
+                    result.update(routed_to="Ollama (Large)", answer=answer)
+            else:
+                result.update(model=config.LOCAL_MODEL, routed_to="Local Edge (Tier 2)", answer=local_answer)
         else:
             direct = mode == "cloud-only" or is_complex_heuristic(prompt)
             local_answer = "" if direct else await run_local_triage(http_client, prompt)
@@ -108,24 +125,51 @@ def save_results(path, results):
             temporary_path.unlink(missing_ok=True)
 
 
+async def check_ollama_models(client, mode):
+    if not config.LOCAL_MODEL.strip() or not config.OLLAMA_LARGE_MODEL.strip():
+        raise ValueError("Set nonempty LOCAL_MODEL and OLLAMA_LARGE_MODEL values.")
+    def tagged(model):
+        return model if ":" in model.rsplit("/", 1)[-1] else f"{model}:latest"
+
+    if tagged(config.LOCAL_MODEL) == tagged(config.OLLAMA_LARGE_MODEL):
+        raise ValueError("LOCAL_MODEL and OLLAMA_LARGE_MODEL must be different.")
+    models = [config.OLLAMA_LARGE_MODEL]
+    if mode == "ollama-routed":
+        models.append(config.LOCAL_MODEL)
+    for model in models:
+        try:
+            response = await client.post(f"{config.OLLAMA_BASE_URL}/api/show", json={"model": model})
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code == 404:
+                raise ValueError(f"Ollama model {model} is missing. Run: ollama pull {model}") from exc
+            raise ValueError(f"Ollama model check failed with HTTP {exc.response.status_code}.") from exc
+        except httpx.RequestError as exc:
+            raise ValueError("Cannot reach Ollama. Start Ollama and check OLLAMA_BASE_URL.") from exc
+
+
 async def async_main(input_path, output_path, mode):
     if input_path.resolve() == output_path.resolve():
         raise ValueError("Input and output paths must differ.")
     tasks = read_tasks(input_path)
-    if config.MAX_CONCURRENT_TASKS < 1:
+    ollama_only = mode in OLLAMA_MODES
+    concurrency = 1 if ollama_only else config.MAX_CONCURRENT_TASKS
+    if concurrency < 1:
         raise ValueError("MAX_CONCURRENT_TASKS must be at least 1.")
     if mode == "cloud-only" and not config.FIREWORKS_API_KEY:
         raise ValueError("Set FIREWORKS_API_KEY to run the cloud-only baseline.")
     cloud_client = None
-    if config.FIREWORKS_API_KEY:
+    if config.FIREWORKS_API_KEY and not ollama_only:
         cloud_client = AsyncOpenAI(
             api_key=config.FIREWORKS_API_KEY, base_url=config.FIREWORKS_BASE_URL,
             max_retries=0, timeout=30.0,
         )
-    semaphore = asyncio.Semaphore(config.MAX_CONCURRENT_TASKS)
-    limits = httpx.Limits(max_connections=config.MAX_CONCURRENT_TASKS, max_keepalive_connections=5)
+    semaphore = asyncio.Semaphore(concurrency)
+    limits = httpx.Limits(max_connections=concurrency, max_keepalive_connections=5)
     try:
         async with httpx.AsyncClient(limits=limits, timeout=15.0) as http_client:
+            if ollama_only:
+                await check_ollama_models(http_client, mode)
             results = await asyncio.gather(*(
                 process_task(task, mode, http_client, cloud_client, semaphore) for task in tasks
             ))
@@ -140,7 +184,7 @@ def main():
     parser = argparse.ArgumentParser(description="Run an EcoRoute inference batch.")
     parser.add_argument("--input", type=Path, default=Path(config.INPUT_PATH))
     parser.add_argument("--output", type=Path, default=Path(config.OUTPUT_PATH))
-    parser.add_argument("--mode", choices=("routed", "cloud-only"), default="routed")
+    parser.add_argument("--mode", choices=("routed", "cloud-only", *OLLAMA_MODES), default="routed")
     args = parser.parse_args()
     try:
         asyncio.run(async_main(args.input, args.output, args.mode))
@@ -150,4 +194,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
