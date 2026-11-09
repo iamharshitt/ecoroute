@@ -1,0 +1,66 @@
+name: Live Ollama benchmark
+on:
+  pull_request:
+    branches: [main, master]
+    paths:
+      - '.github/workflows/ollama-benchmark.yml'
+      - 'main.py'
+      - 'router.py'
+      - 'benchmark.py'
+      - 'config.py'
+      - 'input/tasks.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      OLLAMA_NO_CLOUD: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Ollama and dependencies
+        run: |
+          python -m pip install -r requirements.txt
+          curl -fsSL https://ollama.com/install.sh -o "$RUNNER_TEMP/install-ollama.sh"
+          sh "$RUNNER_TEMP/install-ollama.sh"
+          if ! curl -fsS http://localhost:11434/api/version; then
+            ollama serve > "$RUNNER_TEMP/ollama.log" 2>&1 &
+          fi
+          for attempt in {1..30}; do
+            if curl -fsS http://localhost:11434/api/version; then
+              break
+            fi
+            sleep 1
+          done
+          ollama pull qwen2.5:1.5b
+          ollama pull qwen2.5:7b
+      - name: Run matched batches
+        run: |
+          mkdir -p benchmark-output
+          ollama list | tee benchmark-output/models.txt
+          lscpu > benchmark-output/cpu.txt
+          python main.py --mode ollama-routed --input input/tasks.json --output benchmark-output/routed.json
+          ollama stop qwen2.5:1.5b
+          ollama stop qwen2.5:7b
+          python main.py --mode ollama-large-only --input input/tasks.json --output benchmark-output/large-only.json
+          python benchmark.py benchmark-output/routed.json --baseline benchmark-output/large-only.json | tee benchmark-output/report.txt
+          {
+            echo '### Live Ollama benchmark'
+            echo
+            echo 'Single pass per mode on this runner. Latency includes model loading.'
+            echo
+            echo '```text'
+            cat benchmark-output/report.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: live-ollama-benchmark
+          path: benchmark-output/
