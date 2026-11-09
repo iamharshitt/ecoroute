@@ -2,6 +2,24 @@
 
 EcoRoute is a local-first prototype for routing a batch of prompts. A keyword and length filter sends potentially complex prompts to the heavier configured Fireworks model. Other prompts go to a local Ollama model first. A local escalation signal or failed response routes the original prompt to the cheaper configured Fireworks model.
 
+## Run a benchmark without Docker or an API key
+
+Install [Ollama for Windows](https://docs.ollama.com/windows), start Ollama, and run these commands in PowerShell from the repository root. Python 3.10 or later is required.
+
+```powershell
+ollama pull qwen2.5:1.5b
+ollama pull qwen2.5:7b
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe main.py --mode ollama-routed --input input/tasks.json --output output/ollama-routed.json
+.\.venv\Scripts\python.exe main.py --mode ollama-large-only --input input/tasks.json --output output/ollama-large-only.json
+.\.venv\Scripts\python.exe benchmark.py output/ollama-routed.json --baseline output/ollama-large-only.json
+```
+
+The routed run tries the small model on simple prompts and uses the large model for complex prompts or when the small model escalates or fails. The baseline uses the same large model and settings for every nonempty prompt. Both runs process one prompt at a time. Set `LOCAL_MODEL` and `OLLAMA_LARGE_MODEL` to use different installed models. Use the same settings for both runs. The report counts large-model attempts and failures and compares per-task processing latency. Model loading can affect timings, so repeat both runs under comparable conditions for a performance claim.
+
+For answer quality, grade both answers for each task against the same expected result. Use automated checks for code and exact-answer tasks where possible. This benchmark measures local inference only.
+
 ## Run a batch
 
 Build the image and run these commands from a POSIX shell in the repository root. Set FIREWORKS_API_KEY in your environment before running a batch that may use the cloud. Set ALLOWED_MODELS to a comma-separated list of model IDs available to your Fireworks account if you need to override the defaults in config.py. The first model is used for the cheaper route and the last for the heavier route.
