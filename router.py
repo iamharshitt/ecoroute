@@ -14,8 +14,6 @@ def is_complex_heuristic(prompt: str) -> bool:
     return bool(COMPLEX_KEYWORDS.search(prompt)) or len(prompt.split()) > 45
 
 async def run_local_triage(client: httpx.AsyncClient, prompt: str) -> str:
-    safe_prompt = prompt[:2000]
-    
     system_prompt = (
         "You are a highly efficient preliminary triage agent.\n"
         "Your job is to directly answer simple tasks, and ESCALATE hard ones to a senior AI.\n\n"
@@ -28,18 +26,21 @@ async def run_local_triage(client: httpx.AsyncClient, prompt: str) -> str:
         "- Mathematical calculations, algebra, or physics problems.\n"
         "- Deep logic puzzles or highly creative writing."
     )
-    
+    return await generate_ollama(client, LOCAL_MODEL, prompt[:2000], 150, 30.0, system_prompt)
+
+
+async def generate_ollama(client, model, prompt, max_tokens, timeout, system_prompt=""):
     try:
         response = await client.post(
             f"{OLLAMA_BASE_URL}/api/generate",
             json={
-                "model": LOCAL_MODEL,
+                "model": model,
                 "system": system_prompt,
-                "prompt": safe_prompt,
+                "prompt": prompt,
                 "stream": False,
-                "options": {"temperature": 0.0, "num_predict": 150}
+                "options": {"temperature": 0.0, "num_predict": max_tokens}
             },
-            timeout=30.0
+            timeout=timeout
         )
         if response.status_code == 200:
             payload = response.json()
@@ -51,4 +52,3 @@ async def run_local_triage(client: httpx.AsyncClient, prompt: str) -> str:
         pass
     
     return "ESCALATE"
-
